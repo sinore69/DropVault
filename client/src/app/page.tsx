@@ -1,73 +1,163 @@
-'use client';
+"use client"
+import React, { useState, useMemo } from 'react';
+import Header from './components/Header';
+import Sidebar from './components/Sidebar';
+import Breadcrumb from './components/Breadcrumb';
+import FileGrid from './components/FileGrid';
+import ShareModal from './components/ShareModal';
+import UploadModal from './components/UploadModal';
+import { FileItem, ViewMode, User } from './types';
+import { mockFiles, currentUser } from './data/mockData';
 
-import { useEffect, useState } from 'react';
+function App() {
+  const [files, setFiles] = useState<FileItem[]>(mockFiles);
+  const [currentPath, setCurrentPath] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useState<ViewMode>('grid');
+  const [shareModalFile, setShareModalFile] = useState<FileItem | null>(null);
+  const [showUploadModal, setShowUploadModal] = useState(false);
 
-export default function Home() {
-  const [files, setFiles] = useState<string[]>([]);
-  const [uploading, setUploading] = useState(false);
+  const currentFolderId = currentPath.length > 0
+    ? files.find(f => f.type === 'folder' && f.name === currentPath[currentPath.length - 1])?.id || null
+    : null;
 
-  const fetchFiles = async () => {
-    const res = await fetch('http://localhost:8080/api/files');
-    const data = await res.json();
-    setFiles(data);
-  };
+  const filteredFiles = useMemo(() => {
+    const filtered = files.filter(file => {
+      // Filter by current folder
+      if (file.parentId !== currentFolderId) return false;
 
-  useEffect(() => {
-    fetchFiles();
-  }, []);
+      // Filter by search query
+      if (searchQuery && !file.name.toLowerCase().includes(searchQuery.toLowerCase())) {
+        return false;
+      }
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setUploading(true);
-    const formData = new FormData();
-    formData.append('media', file);
-
-    await fetch('http://localhost:8080/api/upload', {
-      method: 'POST',
-      body: formData,
+      return true;
     });
 
-    await fetchFiles();
-    setUploading(false);
+    // Sort files (folders first, then by name)
+    return filtered.sort((a, b) => {
+      if (a.type !== b.type) {
+        return a.type === 'folder' ? -1 : 1;
+      }
+      return a.name.localeCompare(b.name);
+    });
+  }, [files, currentFolderId, searchQuery]);
+
+  const handleFileDoubleClick = (file: FileItem) => {
+    if (file.type === 'folder') {
+      setCurrentPath([...currentPath, file.name]);
+    }
+  };
+
+  const handleNavigate = (path: string[]) => {
+    setCurrentPath(path);
+  };
+
+  const handleStar = (fileId: string) => {
+    setFiles(files.map(file =>
+      file.id === fileId ? { ...file, starred: !file.starred } : file
+    ));
+  };
+
+  const handleShare = (file: FileItem) => {
+    setShareModalFile(file);
+  };
+
+  const handleDelete = (fileId: string) => {
+    setFiles(files.filter(file => file.id !== fileId));
+  };
+
+  const handleRename = (fileId: string, newName: string) => {
+    setFiles(files.map(file =>
+      file.id === fileId ? { ...file, name: newName } : file
+    ));
+  };
+
+  const handleFileUpload = (uploadedFiles: FileList) => {
+    const newFiles: FileItem[] = Array.from(uploadedFiles).map((file, index) => ({
+      id: Date.now().toString() + index,
+      name: file.name,
+      type: 'file' as const,
+      size: file.size,
+      mimeType: file.type,
+      createdAt: new Date(),
+      modifiedAt: new Date(),
+      parentId: currentFolderId,
+      shared: false,
+      starred: false,
+      owner: currentUser.name
+    }));
+
+    setFiles([...files, ...newFiles]);
+  };
+
+  const handleFolderCreate = (name: string) => {
+    const newFolder: FileItem = {
+      id: Date.now().toString(),
+      name,
+      type: 'folder',
+      createdAt: new Date(),
+      modifiedAt: new Date(),
+      parentId: currentFolderId,
+      shared: false,
+      starred: false,
+      owner: currentUser.name
+    };
+
+    setFiles([...files, newFolder]);
   };
 
   return (
-    <main className="min-h-screen bg-gray-100 p-6">
-      <div className="max-w-2xl mx-auto bg-white rounded-2xl shadow-lg p-6">
-        <h1 className="text-3xl font-bold mb-4 text-center">📁 Local Drive</h1>
+    <div className="h-screen flex flex-col bg-gray-50">
+      <Header
+        user={currentUser}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+      />
 
-        <label className="block w-full cursor-pointer mb-6">
-          <input
-            type="file"
-            onChange={handleUpload}
-            className="hidden"
-          />
-          <div className="w-full text-center py-3 px-4 border-2 border-dashed border-gray-300 rounded-lg hover:bg-gray-50 transition">
-            {uploading ? 'Uploading...' : 'Click to upload photo/video'}
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar
+          onNewFolder={() => setShowUploadModal(true)}
+          onFileUpload={() => setShowUploadModal(true)}
+          currentPath={currentPath}
+          onNavigate={handleNavigate}
+        />
+
+        <main className="flex-1 overflow-auto">
+          <div className="p-6">
+            <Breadcrumb path={currentPath} onNavigate={handleNavigate} />
+
+            <FileGrid
+              files={filteredFiles}
+              viewMode={viewMode}
+              onFileDoubleClick={handleFileDoubleClick}
+              onStar={handleStar}
+              onShare={handleShare}
+              onDelete={handleDelete}
+              onRename={handleRename}
+            />
           </div>
-        </label>
-
-        <h2 className="text-xl font-semibold mb-2">Your Files:</h2>
-        <ul className="space-y-2 max-h-80 overflow-y-auto">
-          {files.map((file) => (
-            <li key={file}>
-              <a
-                href={`http://localhost:8080/api/download?file=${file}`}
-                className="text-blue-600 hover:underline break-all"
-                download
-              >
-                {file}
-              </a>
-            </li>
-          ))}
-          {files.length === 0 && (
-            <p className="text-gray-500 italic">No files uploaded yet.</p>
-          )}
-        </ul>
+        </main>
       </div>
-    </main>
+
+      {shareModalFile && (
+        <ShareModal
+          file={shareModalFile}
+          onClose={() => setShareModalFile(null)}
+        />
+      )}
+
+      {showUploadModal && (
+        <UploadModal
+          onClose={() => setShowUploadModal(false)}
+          onFileUpload={handleFileUpload}
+          onFolderCreate={handleFolderCreate}
+        />
+      )}
+    </div>
   );
 }
 
+export default App;
