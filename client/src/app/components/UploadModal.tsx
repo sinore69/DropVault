@@ -12,6 +12,8 @@ const UploadModal: React.FC<UploadModalProps> = ({ onClose, onFileUpload, onFold
   const [folderName, setFolderName] = useState('');
   const [showFolderInput, setShowFolderInput] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<'success' | 'error' | null>(null);
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -29,15 +31,43 @@ const UploadModal: React.FC<UploadModalProps> = ({ onClose, onFileUpload, onFold
     setDragActive(false);
 
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      onFileUpload(e.dataTransfer.files);
-      onClose();
+      uploadFiles(e.dataTransfer.files);
     }
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      onFileUpload(e.target.files);
-      onClose();
+      uploadFiles(e.target.files);
+    }
+  };
+
+  const uploadFiles = async (files: FileList) => {
+    setUploading(true);
+    setUploadStatus(null);
+
+    const formData = new FormData();
+    Array.from(files).forEach((file) => {
+      formData.append('files', file);
+    });
+
+    try {
+      const res = await fetch('http://localhost:8080/upload?key=image.png', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!res.ok) throw new Error('Upload failed');
+
+      setUploadStatus('success');
+      onFileUpload(files);
+      setTimeout(() => {
+        onClose();
+      }, 1000); // slight delay to show success
+    } catch (err) {
+      console.error(err);
+      setUploadStatus('error');
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -88,7 +118,8 @@ const UploadModal: React.FC<UploadModalProps> = ({ onClose, onFileUpload, onFold
                 </button>
                 <button
                   onClick={handleFolderCreate}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  disabled={uploading}
                 >
                   Create
                 </button>
@@ -98,8 +129,8 @@ const UploadModal: React.FC<UploadModalProps> = ({ onClose, onFileUpload, onFold
             <div className="space-y-4">
               <div
                 className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${dragActive
-                    ? 'border-blue-400 bg-blue-50'
-                    : 'border-gray-300 hover:border-gray-400'
+                  ? 'border-blue-400 bg-blue-50'
+                  : 'border-gray-300 hover:border-gray-400'
                   }`}
                 onDragEnter={handleDrag}
                 onDragLeave={handleDrag}
@@ -115,7 +146,8 @@ const UploadModal: React.FC<UploadModalProps> = ({ onClose, onFileUpload, onFold
                 </p>
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  disabled={uploading}
                 >
                   <File className="w-4 h-4 mr-2" />
                   Select files
@@ -140,6 +172,23 @@ const UploadModal: React.FC<UploadModalProps> = ({ onClose, onFileUpload, onFold
               </button>
             </div>
           )}
+          {uploading && (
+            <div className="flex items-center justify-center space-x-2 text-blue-600 text-sm mt-4">
+              <svg className="animate-spin h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+              </svg>
+              <span>Uploading...</span>
+            </div>
+          )}
+
+          {uploadStatus === 'success' && (
+            <p className="text-green-600 text-sm text-center mt-4">Upload successful!</p>
+          )}
+
+          {uploadStatus === 'error' && (
+            <p className="text-red-600 text-sm text-center mt-4">Upload failed. Try again.</p>
+          )}
 
           <input
             ref={fileInputRef}
@@ -155,3 +204,4 @@ const UploadModal: React.FC<UploadModalProps> = ({ onClose, onFileUpload, onFold
 };
 
 export default UploadModal;
+
