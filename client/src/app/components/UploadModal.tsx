@@ -45,15 +45,16 @@ const UploadModal: React.FC<UploadModalProps> = ({ onClose, onFileUpload, onFold
     setUploading(true);
     setUploadStatus(null);
 
-    const formData = new FormData();
-    Array.from(files).forEach((file) => {
-      formData.append('files', file);
-    });
+    const file = files[0]; // assuming single file upload
 
     try {
-      const res = await fetch('http://localhost:8080/upload?key=image.png', {
+      const res = await fetch(`http://localhost:8080/upload?key=${encodeURIComponent(file.name)}`, {
+        //const res = await fetch(`http://localhost:8080/upload?key=image.png`, {
         method: 'POST',
-        body: formData,
+        headers: {
+          'Content-Type': file.type || 'application/octet-stream',
+        },
+        body: file, // send raw file binary
       });
 
       if (!res.ok) throw new Error('Upload failed');
@@ -62,7 +63,7 @@ const UploadModal: React.FC<UploadModalProps> = ({ onClose, onFileUpload, onFold
       onFileUpload(files);
       setTimeout(() => {
         onClose();
-      }, 1000); // slight delay to show success
+      }, 1000);
     } catch (err) {
       console.error(err);
       setUploadStatus('error');
