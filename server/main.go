@@ -77,6 +77,7 @@ func main() {
 	http.HandleFunc("/download", downloadHandler)
 	http.HandleFunc("/list", listHandler)
 	http.HandleFunc("/delete", deleteHandler)
+	http.HandleFunc("/delete-all", deleteAllHandler)
 	log.Println("Server running on :8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
@@ -192,4 +193,44 @@ func deleteHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fmt.Fprintf(w, "Deleted %s successfully\n", objectName)
+}
+
+func deleteAllHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	ctx := context.Background()
+
+	// List all objects in the bucket
+	objectCh := minioClient.ListObjects(ctx, bucketName, minio.ListObjectsOptions{
+		Recursive: true,
+	})
+
+	// Collect object names
+	var objectsToDelete []minio.ObjectInfo
+	for object := range objectCh {
+		if object.Err != nil {
+			http.Error(w, fmt.Sprintf("Failed to list object: %v", object.Err), http.StatusInternalServerError)
+			return
+		}
+		objectsToDelete = append(objectsToDelete, object)
+	}
+
+	if len(objectsToDelete) == 0 {
+		fmt.Fprintln(w, "Bucket is already empty")
+		return
+	}
+
+	// Remove all objects
+	for _, obj := range objectsToDelete {
+		err := minioClient.RemoveObject(ctx, bucketName, obj.Key, minio.RemoveObjectOptions{})
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to delete '%s': %v", obj.Key, err), http.StatusInternalServerError)
+			return
+		}
+	}
+
+	fmt.Fprintf(w, "Deleted all %d objects successfully\n", len(objectsToDelete))
 }
