@@ -1,17 +1,17 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"github.com/joho/godotenv"
+	"github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/credentials"
 	"io"
 	"log"
 	"net/http"
 	"os"
 	"time"
-
-	"github.com/joho/godotenv"
-	"github.com/minio/minio-go/v7"
-	"github.com/minio/minio-go/v7/pkg/credentials"
 )
 
 var (
@@ -82,6 +82,16 @@ func main() {
 }
 
 func uploadHandler(w http.ResponseWriter, r *http.Request) {
+	// Handle CORS
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
 	ctx := context.Background()
 	objectName := r.URL.Query().Get("key")
 	if objectName == "" {
@@ -89,12 +99,28 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err := minioClient.PutObject(ctx, bucketName, objectName, r.Body, -1, minio.PutObjectOptions{})
+	// Read the entire request body into memory
+	data, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "Failed to read request body", http.StatusInternalServerError)
+		return
+	}
+	defer r.Body.Close()
+
+	// Detect content type
+	contentType := http.DetectContentType(data)
+
+	// Upload to MinIO
+	reader := bytes.NewReader(data)
+	_, err = minioClient.PutObject(ctx, bucketName, objectName, reader, int64(len(data)), minio.PutObjectOptions{
+		ContentType: contentType,
+	})
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Upload failed: %v", err), http.StatusInternalServerError)
 		return
 	}
 
+	w.WriteHeader(http.StatusOK)
 	fmt.Fprintf(w, "Uploaded %s successfully\n", objectName)
 }
 
@@ -113,9 +139,24 @@ func downloadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer object.Close()
 
-	w.Header().Set("Content-Disposition", "inline")
+	// Get object stat to get content-type
+	stat, err := object.Stat()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to stat object: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// Set proper headers
+	w.Header().Set("Content-Type", stat.ContentType) // This tells browser it's an image/video/etc.
+	w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", objectName))
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", stat.Size))
 	w.WriteHeader(http.StatusOK)
-	io.Copy(w, object)
+
+	// Stream the object directly
+	if _, err := io.Copy(w, object); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to send object: %v", err), http.StatusInternalServerError)
+		return
+	}
 }
 
 func listHandler(w http.ResponseWriter, r *http.Request) {
