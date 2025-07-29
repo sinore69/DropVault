@@ -6,7 +6,7 @@ import Breadcrumb from './components/Breadcrumb';
 import FileGrid from './components/FileGrid';
 import ShareModal from './components/ShareModal';
 import UploadModal from './components/UploadModal';
-import { FileItem, ViewMode, User } from './types';
+import { FileItem, ViewMode } from './types';
 import { mockFiles, currentUser } from './data/mockData';
 
 function App() {
