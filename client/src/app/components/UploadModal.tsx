@@ -48,16 +48,68 @@ const UploadModal: React.FC<UploadModalProps> = ({ onClose, onFileUpload, onFold
     const file = files[0]; // assuming single file upload
 
     try {
-      const res = await fetch(`http://localhost:8080/upload?key=${encodeURIComponent(file.name)}`, {
-        //const res = await fetch(`http://localhost:8080/upload?key=image.png`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': file.type || 'application/octet-stream',
-        },
-        body: file, // send raw file binary
-      });
+      // const res = await fetch(`http://localhost:8080/upload?key=${encodeURIComponent(file.name)}`, {
+      // console.log("image upload req made")
+      // const res = await fetch(`http://localhost:8080/upload?key=image.png`, {
+      //   method: 'POST',
+      //   headers: {
+      //     'Content-Type': file.type || 'application/octet-stream',
+      //   },
+      //   body: file, // send raw file binary
+      // });
+      //
+      // if (!res.ok) {
+      //   console.log("image upload failed")
+      //   throw new Error('Image Upload failed');
+      // }
+      // console.log("image upload successfull")
+      try {
+        // 2. Upload metadata
+        const metadata = {
+          id: crypto.randomUUID(),
+          name: file.name,
+          type: 'file',
+          createdAt: new Date().toISOString(),
+          modifiedAt: new Date().toISOString(),
+          parentId: null,
+          shared: false,
+          starred: false,
+          owner: 'John Doe',
+        };
+        // 2. Create metadata JSON blob
+        const metadataBlob = new Blob([JSON.stringify(metadata)], {
+          type: 'application/json',
+        });
 
-      if (!res.ok) throw new Error('Upload failed');
+        // 3. Create FormData with both file and metadata
+        const formData = new FormData();
+        formData.append('file', file);
+
+        // Append metadata as Blob directly (no need to convert to File)
+        formData.append('metadata', metadataBlob, `${metadata.id}.json`);
+
+        console.log("metadata creation done")
+        for (const [key, value] of formData.entries()) {
+          console.log(`${key}:`, value);
+        }
+        console.log("metadata uploading")
+        // 4. Single API call to handle both uploads
+        const metadataRes = await fetch('http://localhost:8080/metadata', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!metadataRes.ok) {
+          console.log("metadata upload failed")
+          throw new Error('Metadata upload failed - rolled back image upload');
+        }
+
+        console.log("metadata upload successful")
+        //return { success: true, file };
+      } catch (metadataError) {
+        console.log(metadataError)
+        throw metadataError;
+      }
 
       setUploadStatus('success');
       onFileUpload(files);
