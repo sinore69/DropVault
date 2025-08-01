@@ -72,6 +72,8 @@ func main() {
 	http.HandleFunc("/list", routes.ListHandler)
 	http.HandleFunc("/delete", routes.DeleteAllHandler)
 	http.HandleFunc("/delete-all", routes.DeleteAllHandler)
+	http.HandleFunc("/metadata", routes.GetMetadataHandler)
+	http.HandleFunc("/getfile", routes.GetFileHandler)
 	log.Println("Server running on :8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
