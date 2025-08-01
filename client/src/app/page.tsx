@@ -1,5 +1,5 @@
 "use client"
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
 import Breadcrumb from './components/Breadcrumb';
@@ -16,32 +16,11 @@ function App() {
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [shareModalFile, setShareModalFile] = useState<FileItem | null>(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   const currentFolderId = currentPath.length > 0
     ? files.find(f => f.type === 'folder' && f.name === currentPath[currentPath.length - 1])?.id || null
     : null;
-
-  const filteredFiles = useMemo(() => {
-    const filtered = files.filter(file => {
-      // Filter by current folder
-      if (file.parentId !== currentFolderId) return false;
-
-      // Filter by search query
-      if (searchQuery && !file.name.toLowerCase().includes(searchQuery.toLowerCase())) {
-        return false;
-      }
-
-      return true;
-    });
-
-    // Sort files (folders first, then by name)
-    return filtered.sort((a, b) => {
-      if (a.type !== b.type) {
-        return a.type === 'folder' ? -1 : 1;
-      }
-      return a.name.localeCompare(b.name);
-    });
-  }, [files, currentFolderId, searchQuery]);
 
   const handleFileDoubleClick = (file: FileItem) => {
     if (file.type === 'folder') {
@@ -124,22 +103,33 @@ function App() {
           currentPath={currentPath}
           onNavigate={handleNavigate}
         />
-
         <main className="flex-1 overflow-auto">
-          <div className="p-6">
-            <Breadcrumb path={currentPath} onNavigate={handleNavigate} />
+          {uploading ? (
+            <div className="flex items-center justify-center space-x-2 text-blue-600 text-sm mt-[20%]">
+              <svg className="animate-spin h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+              </svg>
+              <span className='text-2xl'>Loading...</span>
+            </div>
+          ) : (
+            <div className="p-6">
+              <Breadcrumb path={currentPath} onNavigate={handleNavigate} />
 
-            <FileGrid
-              files={filteredFiles}
-              viewMode={viewMode}
-              onFileDoubleClick={handleFileDoubleClick}
-              onStar={handleStar}
-              onShare={handleShare}
-              onDelete={handleDelete}
-              onRename={handleRename}
-            />
-          </div>
+              <FileGrid
+                files={files}
+                viewMode={viewMode}
+                onFileDoubleClick={handleFileDoubleClick}
+                onStar={handleStar}
+                onShare={handleShare}
+                onDelete={handleDelete}
+                onRename={handleRename}
+              />
+            </div>
+          )}
         </main>
+
+
       </div>
 
       {shareModalFile && (
