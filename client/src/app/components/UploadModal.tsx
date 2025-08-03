@@ -48,21 +48,7 @@ const UploadModal: React.FC<UploadModalProps> = ({ onClose, onFileUpload, onFold
     const file = files[0]; // assuming single file upload
 
     try {
-      // const res = await fetch(`http://localhost:8080/upload?key=${encodeURIComponent(file.name)}`, {
-      // console.log("image upload req made")
-      // const res = await fetch(`http://localhost:8080/upload?key=image.png`, {
-      //   method: 'POST',
-      //   headers: {
-      //     'Content-Type': file.type || 'application/octet-stream',
-      //   },
-      //   body: file, // send raw file binary
-      // });
-      //
-      // if (!res.ok) {
-      //   console.log("image upload failed")
-      //   throw new Error('Image Upload failed');
-      // }
-      // console.log("image upload successfull")
+
       try {
         // 2. Upload metadata
         const metadata = {
